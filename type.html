@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" type="text/css" href="style.css"/>
+  <title>Typing Tunes</title>
+</head>
+<body>
+  <header>
+    <div class="history">
+      <a href="history.php">History</a>
+    </div>
+    <h1><a href="type.html">Typing Tunes</a></h1>
+    <div class="rankings">
+      <a href="rankings.php">Rankings</a>
+    </div>
+  </header>
+
+  <main>
+    <section class="song-list">
+      <div class = 'song-header'>
+        <span id="song-display">Song will be displayed here.</span>
+        <span id = "WPM">WPM</span>
+        <span id = "Accuracy">Accuracy</span>
+        <span id="username-display">Username</span>
+      </div>
+      <div class="song-search">
+        <form action="#" id="search">
+          <div style="display: flex; gap: 10px;">
+            <label>
+              Song title*<br />
+              <input type="text" 
+                     id="title-input"
+                     name="title"
+                     maxlength="40"
+                     autofocus
+                     required />
+            </label>
+            <label>
+              Artist name<br />
+              <input type="text"
+                     id="artist-input"
+                     name="artist"
+                     maxlength="40" />
+            </label>
+            <button id = "searchButton" type="submit" class = "suggestButton">Search</button>
+          </div>
+        </form>
+
+      </div>
+      
+
+      <div id="current-line">
+        Song lyrics will show up here.
+      </div>
+      <div id="next-line">
+      </div>
+
+      <input type="text"
+             id="type-input"
+             name="type"
+             size="80"
+             disabled />
+    </section>
+    
+  </main>
+  <main>
+    <section class="song-suggestion">
+      <h2 id ="suggested-song-h2">Suggested Song</h2>
+      <div id = "suggested-songs">
+        <!-- This is where I would put suggested songs... if I had any. -->
+      </div>
+      <div id = "suggested-buttons">
+        <button id = "next_song" class = "suggestButton">Next song</button>
+        <button id = "type_song" class = "suggestButton">Type this song</button>
+      </div>
+    </section>
+  </main>
+  
+  <footer>
+    <div id = "footerLink"><a href="login.php">Log Out</a></div>
+  </footer>
+
+  <script>
+    // Anything within brackets (lazy), plus the newline after
+    const ANNOTATION_REGEX = /\[.*?\]\n?/g;
+    // Does not include apostrophe ('), comma (,)
+    const PUNCTUATION_REGEX = /[!"#$%&()*+-./:;<=>?@[\]^_`{|}~]/g;
+
+    // An array of suggested songs
+    const SUGGESTED_SONGS = [
+      ['Pink Pony Club', 'Chappell Roan'],
+      ['Espresso', 'Sabrina Carpenter'],
+      ['Good Luck, Babe', 'Chappell Roan'],
+      ['Clarity', 'Zedd'],
+      ['Too Sweet', 'Hozier'],
+      ['Symphony', 'Clean Bandit'],
+      ['What Makes You Beautiful', 'One Direction'],
+      ['I Want It That Way', 'Backstreet Boys'],
+      ['Mr. Brightside', 'The Killers'],
+      ['You Suffer', 'Napalm Death'],
+      ['Life is a Highway', 'Rascal Flatts']
+    ]
+    let suggested_songs_DOM = document.getElementById("suggested-songs");
+
+    function shuffle(array) {
+    let currentIndex = array.length;
+
+    // While there remain elements to shuffle...
+      while (currentIndex != 0) {
+
+        // Pick a remaining element...
+        let randomIndex = Math.floor(Math.random() * currentIndex);
+        currentIndex--;
+
+        // And swap it with the current element.
+        [array[currentIndex], array[randomIndex]] = [
+        array[randomIndex], array[currentIndex]];
+      }
+    }
+    shuffle(SUGGESTED_SONGS);
+    let songIndex = 0;
+    suggested_songs_DOM.innerHTML = (SUGGESTED_SONGS[songIndex][0] + " - " + SUGGESTED_SONGS[songIndex][1])
+
+    const nextSongFunc = () => {
+      songIndex += 1;
+      songIndex %= 11;
+      console.log(songIndex);
+      suggested_songs_DOM.innerHTML = (SUGGESTED_SONGS[songIndex][0] + " by " + SUGGESTED_SONGS[songIndex][1]);
+    }
+
+    const typeSongFunc = (event) => {
+      document.getElementById("title-input").value = SUGGESTED_SONGS[songIndex][1];
+      document.getElementById("artist-input").value = SUGGESTED_SONGS[songIndex][0];
+      handleSubmit(event);
+    }
+
+    next_song_button = document.getElementById("next_song");
+    type_song_button = document.getElementById("type_song");
+    next_song_button.addEventListener('click', nextSongFunc)
+    type_song_button.addEventListener('click', typeSongFunc);
+
+    
+
+    
+    // Stores the lyrics array (a string for each line)
+    let lyrics = [];
+
+    // Current line number
+    let lineNumber = 0; 
+
+    // Does not count the current line
+    let totalTyped = 0;
+    let totalErrors = 0;
+
+    // Tracks the number of characters typed/number of errors made in the
+    // current line
+    let lineTyped = 0;
+    let lineErrors = 0;
+
+    // Start and end times for WPM calculation
+    let startTime = null;
+    let endTime = null;
+
+    /**
+     * Removes the song structure annotations ("[Pre-chorus]" and the like)
+     * and punctuation (e.g., periods).
+     * Returns an array of strings.
+     */
+    const cleanLyrics = (lyrics) => {
+      return lyrics.replaceAll(ANNOTATION_REGEX, "")
+                   .replaceAll(PUNCTUATION_REGEX, "")
+                   .split("\n")
+                   .filter((line) => line !== ""); // remove empty strings
+    }
+
+    /**
+     * Resets the typing game.
+     */
+    const resetGame = () => {
+      // Reset parameters
+      startTime = null;
+      endTime = null;
+
+      lineNumber = 0;
+      totalErrors = 0;
+      totalTyped = 0;
+
+      lineTyped = 0;
+      lineErrors = 0;
+
+      // Update display
+      document.getElementById("WPM").innerHTML = "WPM";
+      document.getElementById("Accuracy").innerHTML = "Accuracy";
+
+      // Ready the type input
+      const typeInput = document.getElementById("type-input");
+      typeInput.disabled = false; // allow the user to use it
+      typeInput.select();         // focus the input
+      typeInput.value = "";       // clear the input
+    }
+
+    /**
+     * Handles the fetch'd data from the lyrics API.
+     * Populates the display with song info.
+     */
+    const handleData = (json) => {
+      // Search did not return any results
+      if(!json["lyrics"]) {
+        document.getElementById("current-line").innerHTML
+          = "Song could not be found!";
+        document.getElementById("song-display").innerHTML
+          = "Song will be displayed here.";
+        return;
+      }
+
+      lyrics = cleanLyrics(json["lyrics"]);
+      const title = json["title"];
+      const artist = json["artist"];
+
+      document.getElementById("current-line").innerHTML = lyrics[0];
+      document.getElementById("next-line").innerHTML = lyrics[1];
+      document.getElementById("song-display").innerHTML = artist + " - " + title;
+
+      resetGame();
+    }
+
+    /**
+     * Callback function for when a user searches for a song.
+     * Populates the display with song info.
+     */
+    const handleSubmit = (event) => {
+      event.preventDefault();
+
+      const input = new FormData(document.forms[0]);
+      const title = input.get("title");
+      const artist = input.get("artist");
+      const url = artist.length > 0
+        ? `https://lyrist.vercel.app/api/${title}/${artist}`
+        : `https://lyrist.vercel.app/api/${title}`;
+
+      fetch(url)
+        .then(res => res.text())
+        .then(text => handleData(JSON.parse(text)));
+    }
+
+    // Attach event listener to search form
+    const form = document.getElementById("search");
+    form.addEventListener("submit", handleSubmit);
+
+    // Get username from cookie and display
+    const urlParams = new URLSearchParams(window.location.search);
+    const username = document.cookie.split("; ")
+                                    .find((row) => row.startsWith("username="))
+                                    ?.split("=")[1];
+    document.getElementById("username-display").innerHTML = username;
+
+    /**
+     * Updates the current line and preview line when the user finishes typing
+     * the current line. If the song is done, instead 1) ends the game,
+     * 2) displays a message prompting the user to select another song, and
+     * 3) calculates the stats and sends the game event to the database.
+     */
+    const updateLine = () => {
+      currentLine = document.getElementById("current-line");
+      nextLine = document.getElementById("next-line");
+
+      // Game completed
+      if (lineNumber == lyrics.length) {
+        document.getElementById("type-input").disabled = true;
+        
+        currentLine.innerHTML = "You completed typing this song.";
+        nextLine.innerHTML = "Search for another song to play again!";
+        
+        endTime = Date.now();
+        calcWPM();
+        calcAccuracy();
+        sendData();
+
+        return;
+      }
+
+      currentLine.innerHTML = lyrics[lineNumber];
+
+      // If current line is the last one, there is no next line
+      if (lineNumber == (lyrics.length - 1))
+        nextLine.innerHTML = "";
+      else
+        nextLine.innerHTML = lyrics[lineNumber + 1];
+    }
+
+    /**
+     * Send the current game's stats to the database.
+     */
+    let sendData = () => {
+      const wpm = document.getElementById("WPM").innerHTML;
+      const accuracy = (totalTyped - totalErrors) / totalTyped * 100;
+      const songDisplayArray = document.getElementById("song-display")
+                                       .innerText
+                                       .split(" - ");
+      const title = songDisplayArray[1];
+      const artist = songDisplayArray[0];
+
+      fetch('send_data.php', {
+        method: 'POST',
+        body: new URLSearchParams({
+          'username': username,
+          'title': title,
+          'artist': artist,
+          'wpm' : wpm,
+          'accuracy': accuracy
+        })
+      })
+        .then(response => response.json())
+        .then(data => console.log(data))
+        .catch(error => console.error('Error sending data: ', error));
+    }
+
+    /**
+     * Callback that processes the user's input after each input
+     */
+    const handleInput = () => {
+      //starts timer that will be used to calculate wpm
+      if (startTime == null)
+      {
+        startTime = Date.now();
+      }
+
+      const typeInput = document.getElementById("type-input");
+      const currInput = typeInput.value;
+      const currInputArray = currInput.split('');
+
+      lineErrors = 0;
+      lineTyped = currInput.length;
+      
+      displayedLine = document.getElementById("current-line");
+      displayedLine.innerHTML.split('').forEach((char, index) => {
+        // Don't want to count errors past where the user has typed
+        if(index >= currInputArray.length)
+          return;
+        
+        inputChar = currInputArray[index];
+        // Increases errors if user's inputted char does not match expected char
+        if (inputChar != char)
+          lineErrors++;
+      });
+
+      calcAccuracy();
+      calcWPM();
+    }
+
+    /**
+     * Updates the display with the user's accuracy
+     */
+    const calcAccuracy = () => {
+      const typed = totalTyped + lineTyped;
+      const errors = totalErrors + lineErrors;
+
+      const numCorrect = typed - errors;
+      const accuracy = (numCorrect / typed) * 100;
+
+      console.log(typed, errors);
+
+      document.getElementById("Accuracy").innerHTML =
+          Math.round(accuracy) + " % Accuracy";
+    }
+
+    /**
+     * Updates the display with the user's WPM
+     */
+    function calcWPM()
+    {
+      const currentTime = Date.now();
+      const elapsedMillis = endTime == null
+        ? (currentTime - startTime) / 1000
+        : (endTime - startTime) / 1000;
+
+      const wordsTyped = (totalTyped + lineTyped) / 5;
+      const minutesTyped = elapsedMillis / 60;
+      const wpm = Math.round(wordsTyped / minutesTyped);
+
+      document.getElementById("WPM").innerHTML = wpm + " WPM";
+    }
+
+    /**
+     * Handles switching to the next line when user presses Enter
+     */
+    const handleNextLine = (event) => {
+      if(event.key !== "Enter")
+        return;
+      
+      lineNumber++;
+      totalTyped += lineTyped;
+      totalErrors += lineErrors;
+
+      updateLine();
+
+      // Reset the input
+      document.getElementById("type-input").value = "";
+    }
+
+
+
+    // Add event listeners to type input
+    document.getElementById("type-input")
+      .addEventListener("input", handleInput);
+    document.getElementById("type-input")
+      .addEventListener("keyup", handleNextLine);
+
+    // Function to add timestamp to links
+function addTimestampToLinks() {
+    // Select all anchor tags
+    const links = document.querySelectorAll('a');
+    
+    links.forEach(link => {
+        link.addEventListener('click', function(e) {
+            // Only modify internal links
+            if (!this.href.includes('http') || this.href.includes(window.location.hostname)) {
+                // Add timestamp only if not already present
+                if (!this.href.includes('_=')) {
+                    const separator = this.href.includes('?') ? '&' : '?';
+                    this.href += separator + '_=' + new Date().getTime();
+                }
+            }
+        });
+    });
+}
+
+// Run the function when the page loads
+document.addEventListener('DOMContentLoaded', addTimestampToLinks);
+
+  </script>
+</body>
+</html>
